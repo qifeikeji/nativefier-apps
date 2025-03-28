@@ -38,20 +38,13 @@ jobs:
           ELECTRON_VERSION="30.0.0"
           echo "Using Electron version: $ELECTRON_VERSION"
           touch zip_files.txt
+          # 创建新的 inject.js 文件
           cat << 'EOF' > inject.js
-          const { app, Menu } = require('electron');
+          const { app } = require('electron');
           window.addEventListener('DOMContentLoaded', () => {
-            const template = [
-              {
-                label: 'About',
-                click: () => {
-                  const version = process.versions.electron;
-                  alert(`This app is powered by Electron v${version}`);
-                }
-              }
-            ];
-            const menu = Menu.buildFromTemplate(template);
-            Menu.setApplicationMenu(menu);
+            const electronVersion = process.versions.electron;
+            const originalTitle = document.title;
+            document.title = `${originalTitle} - Electron v${electronVersion}`;
           });
           EOF
           echo "$APPS" | jq -r '.[] | [.url, .name] | join(" ")' | while read url name; do
@@ -64,12 +57,12 @@ jobs:
               --portable \
               --proxy-rules "http://192.168.1.1:8118" \
               --internal-urls "^_$" \
-              --inject inject.js
+              --inject inject.js \
+              --verbose # 添加详细日志以调试
             zip -r "${name}_linux_x64.zip" *linux-x64
             echo "${name}_linux_x64.zip" >> zip_files.txt
             rm -rf *linux-x64/
           done
-          # 直接将 zip_files.txt 的内容作为多行输出，而不是单行字符串
           echo "ZIP_FILES<<EOF" >> $GITHUB_ENV
           cat zip_files.txt >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV

@@ -22,7 +22,7 @@ jobs:
       - name: Install Node.js, NPM and Yarn
         uses: actions/setup-node@v1
         with:
-          node-version: 14
+          node-version: 18 # 升级到 18.x
 
       - name: Build apps
         shell: bash
@@ -51,7 +51,7 @@ jobs:
           done
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4 # 更新为 v4
+        uses: actions/upload-artifact@v4
         with:
           name: linux-builds
           path: |

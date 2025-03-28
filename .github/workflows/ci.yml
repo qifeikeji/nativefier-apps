@@ -22,7 +22,7 @@ jobs:
       - name: Install Node.js, NPM and Yarn
         uses: actions/setup-node@v1
         with:
-          node-version: 18 # 升级到 18.x
+          node-version: 18
 
       - name: Build apps
         shell: bash
@@ -36,6 +36,25 @@ jobs:
         run: |
           npm install -g nativefier
           ELECTRON_VERSION="30.0.0"
+          echo "Using Electron version: $ELECTRON_VERSION"
+          touch zip_files.txt
+          # 创建 inject.js 文件（如果不直接存放在仓库中）
+          cat << 'EOF' > inject.js
+          const { app, Menu } = require('electron');
+          window.addEventListener('DOMContentLoaded', () => {
+            const template = [
+              {
+                label: 'About',
+                click: () => {
+                  const version = process.versions.electron;
+                  alert(`This app is powered by Electron v${version}`);
+                }
+              }
+            ];
+            const menu = Menu.buildFromTemplate(template);
+            Menu.setApplicationMenu(menu);
+          });
+          EOF
           echo "$APPS" | jq -r '.[] | [.url, .name] | join(" ")' | while read url name; do
             echo "Building $name for Linux x64..."
             nativefier "$url" \
@@ -45,16 +64,16 @@ jobs:
               --arch x64 \
               --portable \
               --proxy-rules "http://192.168.1.1:8118" \
-              --internal-urls "^_$"
+              --internal-urls "^_$" \
+              --inject inject.js # 注入自定义 JS
             zip -r "${name}_linux_x64.zip" *linux-x64
+            echo "${name}_linux_x64.zip" >> zip_files.txt
             rm -rf *linux-x64/
           done
+          echo "ZIP_FILES=$(cat zip_files.txt)" >> $GITHUB_ENV
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-builds
-          path: |
-            开黑啦_linux_x64.zip
-            Inoreader_linux_x64.zip
-            flomo_linux_x64.zip
+          path: ${{ env.ZIP_FILES }}

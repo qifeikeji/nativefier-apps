@@ -29,9 +29,9 @@ jobs:
         env:
           APPS: |
             [
-              {"url": "https://www.kaiheila.cn/", "name": "开黑啦"},
-              {"url": "https://www.inoreader.com", "name": "Inoreader"},
-              {"url": "https://flomoapp.com/", "name": "flomo"}
+              {"url": "https://grok.com/chat", "name": "xai"},
+              {"url": "https://www.douyu.com/directory/myFollow", "name": "douyu"},
+              {"url": "https://mail.google.com/mail/u/0/#inbox", "name": "gmail"}
             ]
         run: |
           npm install -g nativefier

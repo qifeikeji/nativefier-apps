@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch:
 
 jobs:
   build:
@@ -52,9 +52,9 @@ jobs:
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
-        strategy:
-          matrix:
-            app: ["开黑啦", "Inoreader", "flomo"]
         with:
-          name: ${{ matrix.app }}_linux_x64
-          path: ${{ matrix.app }}_linux_x64.zip
+          name: linux-builds
+          path: |
+            开黑啦_linux_x64.zip
+            Inoreader_linux_x64.zip
+            flomo_linux_x64.zip

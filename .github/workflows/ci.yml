@@ -7,118 +7,63 @@ on:
   pull_request:
     branches:
       - main
+
 jobs:
   build:
-      strategy:
-        matrix:
-          os: [macos-latest]
-      runs-on: ${{ matrix.os }}
-      steps:
-        - name: Check out Git repository
-          uses: actions/checkout@v1
+    strategy:
+      matrix:
+        os: [ubuntu-latest] # 改为 Ubuntu，因为只需要 Linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v1
 
-        - name: Install Node.js, NPM and Yarn
-          uses: actions/setup-node@v1
-          with:
-            node-version: 14
+      - name: Install Node.js, NPM and Yarn
+        uses: actions/setup-node@v1
+        with:
+          node-version: 14 # 可以升级到更高版本，如 18 或 20，看需求
 
-        - name: build apps
-          shell: bash
-          run: |
-            npm install -g nativefier
-            nativefier 'https://www.kaiheila.cn/' --name '开黑啦' -a arm64 -p darwin --internal-urls "^_$"
-            nativefier 'https://www.kaiheila.cn/' --name '开黑啦' -a x64 -p darwin --internal-urls "^_$"
-            nativefier 'https://www.kaiheila.cn/' --name '开黑啦' -a x64 -p linux --internal-urls "^_$"
-            zip -r kaiheila_macos_m1.zip *darwin-arm64
-            zip -r kaiheila_macos_intel.zip *darwin-x64
-            zip -r kaiheila_linux_x64.zip *linux*
-            
-            rm -rf *darwin-arm64/
-            rm -rf *darwin-x64/
-            rm -rf *linux*/
-            
-            nativefier 'https://www.inoreader.com' --name Inoreader -a arm64 -p darwin
-            nativefier 'https://www.inoreader.com' --name Inoreader -a x64 -p darwin
-            nativefier 'https://www.inoreader.com' --name Inoreader -a x64 -p linux
-            zip -r inoreader_macos_m1.zip *darwin-arm64
-            zip -r inoreader_macos_intel.zip *darwin-x64
-            zip -r inoreader_linux_x64.zip *linux*
+      - name: Build apps
+        shell: bash
+        env:
+          # 定义网站和对应的名称，使用 JSON 格式方便扩展
+          APPS: |
+            [
+              {"url": "https://www.kaiheila.cn/", "name": "开黑啦"},
+              {"url": "https://www.inoreader.com", "name": "Inoreader"},
+              {"url": "https://flomoapp.com/", "name": "flomo"}
+            ]
+        run: |
+          # 安装 Nativefier
+          npm install -g nativefier
 
-            rm -rf *darwin-arm64/
-            rm -rf *darwin-x64/
-            rm -rf *linux*/
+          # 设置 Electron 版本（例如 30.0.0，可根据需要调整）
+          ELECTRON_VERSION="30.0.0"
 
-            nativefier 'https://flomoapp.com/' --name flomo -a arm64 -p darwin
-            nativefier 'https://flomoapp.com/' --name flomo -a x64 -p darwin
-            nativefier 'https://flomoapp.com/' --name flomo -a x64 -p linux
-            zip -r flomo_macos_m1.zip *darwin-arm64
-            zip -r flomo_macos_intel.zip *darwin-x64
-            zip -r flomo_linux_x64.zip *linux*
+          # 解析 APPS 变量并循环处理每个网站
+          echo "$APPS" | jq -r '.[] | [.url, .name] | join(" ")' | while read url name; do
+            echo "Building $name for Linux x64..."
+            nativefier "$url" \
+              --name "$name" \
+              --electron-version "$ELECTRON_VERSION" \
+              --platform linux \
+              --arch x64 \
+              --portable \
+              --proxy-rules "http://192.168.1.1:8118" \
+              --internal-urls "^_$" # 可选，保留原有的正则规则
 
-            rm -rf *darwin-arm64/
-            rm -rf *darwin-x64/
-            rm -rf *linux*/
+            # 打包成 ZIP
+            zip -r "${name}_linux_x64.zip" *linux-x64
 
-        - name: upload kaiheila_macos_m1
-          uses: actions/upload-artifact@v2
-          with:
-            name: kaiheila_macos_m1
-            path: |
-              kaiheila_macos_m1.zip
+            # 清理生成的文件
+            rm -rf *linux-x64/
+          done
 
-        - name: upload kaiheila_macos_intel
-          uses: actions/upload-artifact@v2
-          with:
-            name: kaiheila_macos_intel
-            path: |
-              kaiheila_macos_intel.zip
-
-        - name: upload kaiheila_linux_x64
-          uses: actions/upload-artifact@v2
-          with:
-            name: kaiheila_linux_x64
-            path: |
-              kaiheila_linux_x64.zip
-              
-        - name: upload inoreader_macos_m1
-          uses: actions/upload-artifact@v2
-          with:
-            name: inoreader_macos_m1
-            path: |
-              inoreader_macos_m1.zip
-              
-        - name: upload inoreader_macos_intel
-          uses: actions/upload-artifact@v2
-          with:
-            name: inoreader_macos_intel
-            path: |
-              inoreader_macos_intel.zip
-
-        - name: upload inoreader_linux_x64
-          uses: actions/upload-artifact@v2
-          with:
-            name: inoreader_linux_x64
-            path: |
-              inoreader_linux_x64.zip
-
-        - name: upload flomo_macos_m1
-          uses: actions/upload-artifact@v2
-          with:
-            name: flomo_macos_m1
-            path: |
-              flomo_macos_m1.zip
-              
-        - name: upload flomo_macos_intel
-          uses: actions/upload-artifact@v2
-          with:
-            name: flomo_macos_intel
-            path: |
-              flomo_macos_intel.zip
-
-        - name: upload flomo_linux_x64
-          uses: actions/upload-artifact@v2
-          with:
-            name: flomo_linux_x64
-            path: |
-              flomo_linux_x64.zip
-
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        strategy:
+          matrix:
+            app: ["开黑啦", "Inoreader", "flomo"] # 与 APPS 中的 name 对应
+        with:
+          name: ${{ matrix.app }}_linux_x64
+          path: ${{ matrix.app }}_linux_x64.zip

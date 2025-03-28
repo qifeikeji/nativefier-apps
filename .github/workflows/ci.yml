@@ -7,12 +7,13 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch: # 支持手动触发
 
 jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest] # 改为 Ubuntu，因为只需要 Linux
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out Git repository
@@ -21,12 +22,11 @@ jobs:
       - name: Install Node.js, NPM and Yarn
         uses: actions/setup-node@v1
         with:
-          node-version: 14 # 可以升级到更高版本，如 18 或 20，看需求
+          node-version: 14
 
       - name: Build apps
         shell: bash
         env:
-          # 定义网站和对应的名称，使用 JSON 格式方便扩展
           APPS: |
             [
               {"url": "https://www.kaiheila.cn/", "name": "开黑啦"},
@@ -34,13 +34,8 @@ jobs:
               {"url": "https://flomoapp.com/", "name": "flomo"}
             ]
         run: |
-          # 安装 Nativefier
           npm install -g nativefier
-
-          # 设置 Electron 版本（例如 30.0.0，可根据需要调整）
           ELECTRON_VERSION="30.0.0"
-
-          # 解析 APPS 变量并循环处理每个网站
           echo "$APPS" | jq -r '.[] | [.url, .name] | join(" ")' | while read url name; do
             echo "Building $name for Linux x64..."
             nativefier "$url" \
@@ -50,12 +45,8 @@ jobs:
               --arch x64 \
               --portable \
               --proxy-rules "http://192.168.1.1:8118" \
-              --internal-urls "^_$" # 可选，保留原有的正则规则
-
-            # 打包成 ZIP
+              --internal-urls "^_$"
             zip -r "${name}_linux_x64.zip" *linux-x64
-
-            # 清理生成的文件
             rm -rf *linux-x64/
           done
 
@@ -63,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v2
         strategy:
           matrix:
-            app: ["开黑啦", "Inoreader", "flomo"] # 与 APPS 中的 name 对应
+            app: ["开黑啦", "Inoreader", "flomo"]
         with:
           name: ${{ matrix.app }}_linux_x64
           path: ${{ matrix.app }}_linux_x64.zip

@@ -101,8 +101,72 @@ jobs:
           ls -lh *.zip
 
       - name: Upload artifacts
+        env:
+          ELECTRON_VERSION: ${{ steps.electron.outputs.version }}
+        run: |
+          echo "📤 Uploading individual artifacts..."
+          echo ""
+          
+          # 为每个 ZIP 文件创建标记文件
+          for zip_file in *.zip; do
+            if [ -f "$zip_file" ]; then
+              base_name="${zip_file%.zip}"
+              echo "${base_name}_electron-v${ELECTRON_VERSION}" > "${zip_file}.artifact_name"
+            fi
+          done
+
+      - name: Upload Gmail
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: linux-builds
-          path: "*.zip"
-          compression-level: 0
+          name: gmail_linux_x64_electron-v${{ steps.electron.outputs.version }}
+          path: gmail_linux_x64.zip
+          if-no-files-found: warn
+
+      - name: Upload GitHub
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github_linux_x64_electron-v${{ steps.electron.outputs.version }}
+          path: github_linux_x64.zip
+          if-no-files-found: warn
+
+      - name: Upload ChatGPT
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt_linux_x64_electron-v${{ steps.electron.outputs.version }}
+          path: chatgpt_linux_x64.zip
+          if-no-files-found: warn
+
+      - name: Upload XAI
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xai_linux_x64_electron-v${{ steps.electron.outputs.version }}
+          path: xai_linux_x64.zip
+          if-no-files-found: warn
+
+      - name: Upload ProtonMail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: protonmail_linux_x64_electron-v${{ steps.electron.outputs.version }}
+          path: protonmail_linux_x64.zip
+          if-no-files-found: warn
+
+      - name: Upload DouyuTV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: douyutv_linux_x64_electron-v${{ steps.electron.outputs.version }}
+          path: douyutv_linux_x64.zip
+          if-no-files-found: warn
+
+      - name: Upload YouTube
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube_linux_x64_electron-v${{ steps.electron.outputs.version }}
+          path: youtube_linux_x64.zip
+          if-no-files-found: warn

@@ -1,5 +1,4 @@
 name: ci
-
 on:
   push:
     branches:
@@ -9,6 +8,17 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  # 配置需要构建的网站
+  SITES: |
+    gmail|https://mail.google.com/mail/u/0/#inbox
+    github|https://github.com
+    chatgpt|https://chat.openai.com
+    xai|https://grok.com/chat
+    protonmail|https://mail.proton.me
+    douyutv|https://www.douyu.com/directory/myFollow
+    youtube|https://www.youtube.com
+
 jobs:
   build:
     strategy:
@@ -17,28 +27,25 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
-      - name: Install Node.js, NPM and Yarn
-        uses: actions/setup-node@v1
+      - name: Install Node.js and NPM
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      - name: Build apps
-        shell: bash
-        env:
-          APPS: |
-            [
-              {"url": "https://grok.com/chat", "name": "xai"},
-              {"url": "https://www.douyu.com/directory/myFollow", "name": "douyu"},
-              {"url": "https://mail.google.com/mail/u/0/#inbox", "name": "gmail"}
-            ]
+      - name: Get latest stable Electron version
+        id: electron
         run: |
-          npm install -g nativefier
-          ELECTRON_VERSION="30.0.0"
-          echo "Using Electron version: $ELECTRON_VERSION"
-          touch zip_files.txt
-          # 创建新的 inject.js 文件
+          ELECTRON_VERSION=$(npm view electron version)
+          echo "version=$ELECTRON_VERSION" >> $GITHUB_OUTPUT
+          echo "✅ Latest stable Electron version: $ELECTRON_VERSION"
+
+      - name: Install Nativefier
+        run: npm install -g nativefier
+
+      - name: Create injection script
+        run: |
           cat << 'EOF' > inject.js
           const { app } = require('electron');
           window.addEventListener('DOMContentLoaded', () => {
@@ -47,28 +54,55 @@ jobs:
             document.title = `${originalTitle} - Electron v${electronVersion}`;
           });
           EOF
-          echo "$APPS" | jq -r '.[] | [.url, .name] | join(" ")' | while read url name; do
-            echo "Building $name for Linux x64..."
+
+      - name: Build applications
+        env:
+          ELECTRON_VERSION: ${{ steps.electron.outputs.version }}
+        run: |
+          echo "🚀 Building applications with Electron v$ELECTRON_VERSION"
+          echo ""
+          
+          # 解析配置并构建每个应用
+          echo "$SITES" | grep -v '^[[:space:]]*$' | while IFS='|' read -r name url; do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Building: $name"
+            echo "🌐 URL: $url"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
             nativefier "$url" \
               --name "$name" \
               --electron-version "$ELECTRON_VERSION" \
               --platform linux \
               --arch x64 \
               --portable \
-              --proxy-rules "http://192.168.1.1:8118" \
-              --internal-urls "^_$" \
+              --internal-urls ".*" \
               --inject inject.js \
-              --verbose # 添加详细日志以调试
-            zip -r "${name}_linux_x64.zip" *linux-x64
-            echo "${name}_linux_x64.zip" >> zip_files.txt
-            rm -rf *linux-x64/
+              --verbose
+            
+            # 查找生成的目录并压缩
+            app_dir=$(find . -maxdepth 1 -type d -name "${name}*linux-x64" | head -n 1)
+            
+            if [ -n "$app_dir" ]; then
+              zip_name="${name}_linux_x64.zip"
+              echo "📦 Packaging: $zip_name"
+              zip -r "$zip_name" "$app_dir"
+              rm -rf "$app_dir"
+              echo "✅ Successfully built: $zip_name"
+            else
+              echo "❌ Failed to find build directory for $name"
+            fi
+            
+            echo ""
           done
-          echo "ZIP_FILES<<EOF" >> $GITHUB_ENV
-          cat zip_files.txt >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✨ All builds completed!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          ls -lh *.zip
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-builds
-          path: ${{ env.ZIP_FILES }}
+          path: "*.zip"
+          compression-level: 0

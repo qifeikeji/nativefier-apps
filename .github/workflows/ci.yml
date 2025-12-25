@@ -76,6 +76,25 @@ jobs:
               UA_FLAG=""
             fi
           fi
+
+          # Cloudflare / 现代风控常见兼容点：
+          # - 关闭 UA-CH（Client Hints）：避免 sec-ch-ua 里带 Electron/Nativefier brand，和我们强制 UA 产生不一致导致 403/循环验证
+          # - 显式开启 Private State Tokens：Cloudflare “Private Access Token” 挑战依赖该能力（不同 Electron/Chromium 版本默认可能不同）
+          ELECTRON_ARGS="--disable-features=UserAgentClientHint --enable-features=PrivateStateTokens"
+
+          # 兼容不同 nativefier 版本的“传递 Chromium/Electron 启动参数”选项名
+          ELECTRON_ARGS_FLAG=""
+          for f in --electron-args --electron-arguments --chrome-args --chromium-args --chrome-flags --chromium-flags; do
+            if nativefier --help 2>/dev/null | grep -q -- "$f"; then
+              ELECTRON_ARGS_FLAG="$f"
+              break
+            fi
+          done
+          if [ -z "$ELECTRON_ARGS_FLAG" ]; then
+            echo "⚠️ nativefier does not advertise an Electron/Chromium args flag; continuing without extra Chromium flags"
+          else
+            echo "✅ Using $ELECTRON_ARGS_FLAG to pass Chromium flags: $ELECTRON_ARGS"
+          fi
           
           # 解析配置并构建每个应用
           echo "$SITES" | grep -v '^[[:space:]]*$' | while IFS='|' read -r name url; do
@@ -92,6 +111,7 @@ jobs:
               --portable \
               --internal-urls ".*" \
               ${UA_FLAG:+$UA_FLAG "$USER_AGENT"} \
+              ${ELECTRON_ARGS_FLAG:+$ELECTRON_ARGS_FLAG "$ELECTRON_ARGS"} \
               --inject inject.js \
               --verbose
             

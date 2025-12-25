@@ -8,6 +8,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   # 配置需要构建的网站
   SITES: |
@@ -112,6 +115,34 @@ jobs:
           echo "✨ All builds completed!"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           ls -lh *.zip
+
+      - name: Prepare release tag
+        if: github.event_name != 'pull_request'
+        id: release_meta
+        env:
+          ELECTRON_VERSION: ${{ steps.electron.outputs.version }}
+        run: |
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ -n "${GITHUB_REF_NAME:-}" ]; then
+            TAG_NAME="${GITHUB_REF_NAME}"
+          else
+            TAG_NAME="electron-v${ELECTRON_VERSION}-run${GITHUB_RUN_NUMBER}"
+          fi
+          RELEASE_NAME="Nativefier Apps (${TAG_NAME})"
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+          echo "✅ Release: $RELEASE_NAME"
+
+      - name: Create/Update GitHub Release and upload zips
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag_name }}
+          name: ${{ steps.release_meta.outputs.release_name }}
+          files: "*.zip"
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         env:

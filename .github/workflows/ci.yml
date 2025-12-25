@@ -47,20 +47,32 @@ jobs:
       - name: Create injection script
         run: |
           cat << 'EOF' > inject.js
-          const { app } = require('electron');
+          // 注意：该脚本运行在网页上下文（renderer）里，不保证能 require('electron')。
+          // 这里保持“零侵入”，避免破坏 Cloudflare / 登录页等关键脚本。
           window.addEventListener('DOMContentLoaded', () => {
-            const electronVersion = process.versions.electron;
-            const originalTitle = document.title;
-            document.title = `${originalTitle} - Electron v${electronVersion}`;
+            // no-op (reserved for future safe tweaks)
           });
           EOF
 
       - name: Build applications
         env:
           ELECTRON_VERSION: ${{ steps.electron.outputs.version }}
+          # 为了兼容 Cloudflare 等风控组件，统一使用更标准的浏览器 UA（避免 Electron/Nativefier 标识导致误判）
+          USER_AGENT: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
         run: |
           echo "🚀 Building applications with Electron v$ELECTRON_VERSION"
           echo ""
+          
+          # 兼容不同 nativefier 版本的 UA 参数（部分版本参数名可能不同）
+          UA_FLAG="--user-agent"
+          if ! nativefier --help 2>/dev/null | grep -q -- "--user-agent"; then
+            if nativefier --help 2>/dev/null | grep -q -- "--ua"; then
+              UA_FLAG="--ua"
+            else
+              echo "⚠️ nativefier does not advertise a UA flag; continuing without forcing USER_AGENT"
+              UA_FLAG=""
+            fi
+          fi
           
           # 解析配置并构建每个应用
           echo "$SITES" | grep -v '^[[:space:]]*$' | while IFS='|' read -r name url; do
@@ -76,6 +88,7 @@ jobs:
               --arch x64 \
               --portable \
               --internal-urls ".*" \
+              ${UA_FLAG:+$UA_FLAG "$USER_AGENT"} \
               --inject inject.js \
               --verbose
             
